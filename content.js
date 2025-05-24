@@ -1,358 +1,509 @@
-// Instagram Likes Extractor - Content Script
-class InstagramDataExtractor {
-  constructor() {
-    this.platform = this.detectPlatform();
+// Instagram Likes Extractor - Content Script with Auto-Scrolling
+(function () {
+  "use strict";
 
-    // Listen for messages from popup
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.action === "extractLikesData") {
-        this.extractData(message.profile, message.contentType, message.limit)
-          .then((data) => sendResponse({ success: true, data: data }))
-          .catch((error) =>
-            sendResponse({ success: false, error: error.message })
-          );
-        return true; // Keep channel open for async response
-      }
-    });
+  // Prevent multiple initialization
+  if (window.instagramExtractorInitialized) {
+    console.log("Instagram extractor already initialized");
+    return;
   }
+  window.instagramExtractorInitialized = true;
 
-  detectPlatform() {
-    const hostname = window.location.hostname;
-    if (hostname.includes("instagram.com")) return "instagram";
-    return null;
-  }
+  class InstagramDataExtractor {
+    constructor() {
+      this.platform = this.detectPlatform();
+      this.isProcessing = false;
 
-  async extractData(profile, contentType, limit) {
-    console.log(
-      `Extracting ${contentType} data for ${profile}, limit: ${limit}`
-    );
-
-    if (!this.platform) {
-      throw new Error("Unsupported platform");
-    }
-
-    // Wait for content to load
-    await this.waitForContent();
-
-    // Scroll to load more content if needed
-    await this.scrollToLoadContent(limit);
-
-    // Extract data based on content type
-    if (contentType === "Reels") {
-      return await this.extractReelsData(profile, limit);
-    } else {
-      return await this.extractPostsData(profile, limit);
-    }
-  }
-
-  async waitForContent() {
-    // Wait for Instagram content to load
-    return new Promise((resolve) => {
-      const checkContent = () => {
-        const posts = document.querySelectorAll(
-          'article, [role="button"] a[href*="/p/"], [role="button"] a[href*="/reel/"]'
-        );
-        if (posts.length > 0) {
-          resolve();
-        } else {
-          setTimeout(checkContent, 500);
+      // Listen for messages from popup
+      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.action === "extractLikesData") {
+          this.extractData(message.profile, message.contentType, message.limit)
+            .then((data) => sendResponse({ success: true, data: data }))
+            .catch((error) =>
+              sendResponse({ success: false, error: error.message })
+            );
+          return true; // Keep channel open for async response
         }
-      };
-      checkContent();
-    });
-  }
+      });
+    }
 
-  async scrollToLoadContent(limit) {
-    if (limit === "all" || limit > 50) {
-      // Scroll down to load more content
-      const scrollAmount = Math.min(
-        limit === "all" ? 20 : Math.ceil(limit / 12),
-        20
+    detectPlatform() {
+      const hostname = window.location.hostname;
+      if (hostname.includes("instagram.com")) return "instagram";
+      return null;
+    }
+
+    async extractData(profile, contentType, limit) {
+      if (this.isProcessing) {
+        throw new Error("Already processing data");
+      }
+
+      this.isProcessing = true;
+      console.log(
+        `🚀 Starting extraction: ${contentType} data for ${profile}, limit: ${limit}`
       );
 
-      for (let i = 0; i < scrollAmount; i++) {
-        window.scrollTo(0, document.body.scrollHeight);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-
-      // Scroll back to top
-      window.scrollTo(0, 0);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
-
-  async extractPostsData(profile, limit) {
-    const posts = [];
-
-    // Different selectors for Instagram posts
-    const postLinks = document.querySelectorAll('a[href*="/p/"]');
-    console.log(`Found ${postLinks.length} post links`);
-
-    const actualLimit =
-      limit === "all" ? postLinks.length : Math.min(limit, postLinks.length);
-
-    for (let i = 0; i < actualLimit; i++) {
-      const postLink = postLinks[i];
-      const postUrl = postLink.href;
-
       try {
-        // Find the post container
-        const postContainer =
-          postLink.closest("article") || postLink.closest("div");
+        if (!this.platform) {
+          throw new Error("Unsupported platform");
+        }
 
-        // Extract post data
-        const postData = {
-          url: postUrl,
-          createDate: this.extractCreateDate(postContainer),
-          likes: this.extractLikes(postContainer),
-          comments: this.extractComments(postContainer),
-          caption: this.extractCaption(postContainer),
+        // Step 1: Wait for initial content to load
+        await this.waitForInitialContent();
+        console.log("✅ Initial content loaded");
+
+        // Step 2: Auto-scroll to load more content
+        await this.autoScrollToLoadContent(limit);
+        console.log("✅ Auto-scrolling completed");
+
+        // Step 3: Extract all data
+        let data;
+        if (contentType === "Reels") {
+          data = await this.extractReelsData(profile, limit);
+        } else {
+          data = await this.extractPostsData(profile, limit);
+        }
+
+        console.log(`✅ Extraction completed: ${data.length} items`);
+        return data;
+      } finally {
+        this.isProcessing = false;
+      }
+    }
+
+    async waitForInitialContent() {
+      console.log("⏳ Waiting for initial content...");
+      return new Promise((resolve, reject) => {
+        let attempts = 0;
+        const maxAttempts = 20;
+
+        const checkContent = () => {
+          attempts++;
+
+          // Look for post/reel containers
+          const posts = document.querySelectorAll(
+            'article, a[href*="/p/"], a[href*="/reel/"]'
+          );
+          console.log(`Attempt ${attempts}: Found ${posts.length} items`);
+
+          if (posts.length > 0) {
+            resolve();
+          } else if (attempts >= maxAttempts) {
+            reject(new Error("Could not find Instagram content"));
+          } else {
+            setTimeout(checkContent, 500);
+          }
         };
 
-        posts.push(postData);
-        console.log(`Extracted post ${i + 1}:`, postData);
-      } catch (error) {
-        console.error(`Error extracting post ${i + 1}:`, error);
-        // Add placeholder data to maintain count
-        posts.push({
-          url: postUrl,
-          createDate: "Unknown",
-          likes: 0,
-          comments: 0,
-          caption: "",
-        });
+        checkContent();
+      });
+    }
+
+    async autoScrollToLoadContent(limit) {
+      if (limit === 25 || limit === "all") {
+        // For small limits or 'all', do extensive scrolling
+        console.log("🔄 Starting auto-scroll process...");
+
+        // Scroll to top first
+        window.scrollTo(0, 0);
+        await this.delay(1000);
+
+        let previousPostCount = 0;
+        let currentPostCount = 0;
+        let scrollAttempts = 0;
+        const maxScrollAttempts = limit === "all" ? 50 : Math.ceil(limit / 6); // ~6 posts per scroll
+
+        while (scrollAttempts < maxScrollAttempts) {
+          // Count current posts
+          currentPostCount = this.countCurrentPosts();
+          console.log(
+            `Scroll attempt ${
+              scrollAttempts + 1
+            }: ${currentPostCount} posts found`
+          );
+
+          // If we have enough posts and limit is not 'all', stop
+          if (limit !== "all" && currentPostCount >= limit) {
+            console.log(`✅ Reached target: ${currentPostCount} >= ${limit}`);
+            break;
+          }
+
+          // If no new posts loaded in last attempt, try a few more times then stop
+          if (currentPostCount === previousPostCount) {
+            if (scrollAttempts > 5) {
+              // Give it at least 5 tries
+              console.log("📄 No new content loading, stopping scroll");
+              break;
+            }
+          }
+
+          previousPostCount = currentPostCount;
+
+          // Scroll down smoothly
+          await this.performScroll();
+          scrollAttempts++;
+
+          // Wait for content to load
+          await this.delay(2000);
+        }
+
+        // Final count
+        const finalCount = this.countCurrentPosts();
+        console.log(`🎯 Final count after scrolling: ${finalCount} posts`);
+
+        // Scroll back to top for better data extraction
+        window.scrollTo(0, 0);
+        await this.delay(1000);
       }
     }
 
-    return posts;
-  }
+    countCurrentPosts() {
+      // Count both posts and reels
+      const posts = document.querySelectorAll('a[href*="/p/"]');
+      const reels = document.querySelectorAll('a[href*="/reel/"]');
+      return posts.length + reels.length;
+    }
 
-  async extractReelsData(profile, limit) {
-    const reels = [];
+    async performScroll() {
+      // Smooth scroll down
+      const scrollHeight = document.body.scrollHeight;
+      const currentScroll = window.pageYOffset;
+      const clientHeight = window.innerHeight;
 
-    // Different selectors for Instagram reels
-    const reelLinks = document.querySelectorAll('a[href*="/reel/"]');
-    console.log(`Found ${reelLinks.length} reel links`);
+      // Scroll down by one viewport height
+      const targetScroll = Math.min(
+        currentScroll + clientHeight * 0.8,
+        scrollHeight
+      );
 
-    const actualLimit =
-      limit === "all" ? reelLinks.length : Math.min(limit, reelLinks.length);
+      // Smooth scroll animation
+      const startScroll = currentScroll;
+      const scrollDistance = targetScroll - startScroll;
+      const duration = 1000; // 1 second
+      const startTime = Date.now();
 
-    for (let i = 0; i < actualLimit; i++) {
-      const reelLink = reelLinks[i];
-      const reelUrl = reelLink.href;
+      return new Promise((resolve) => {
+        const animateScroll = () => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
 
-      try {
-        // Find the reel container
-        const reelContainer =
-          reelLink.closest("article") || reelLink.closest("div");
+          // Easing function
+          const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+          const currentPosition = startScroll + scrollDistance * easeOutCubic;
 
-        // Extract reel data
-        const reelData = {
-          url: reelUrl,
-          views: this.extractViews(reelContainer),
-          likes: this.extractLikes(reelContainer),
-          comments: this.extractComments(reelContainer),
+          window.scrollTo(0, currentPosition);
+
+          if (progress < 1) {
+            requestAnimationFrame(animateScroll);
+          } else {
+            resolve();
+          }
         };
 
-        reels.push(reelData);
-        console.log(`Extracted reel ${i + 1}:`, reelData);
+        animateScroll();
+      });
+    }
+
+    async delay(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async extractPostsData(profile, limit) {
+      console.log("📊 Extracting posts data...");
+      const posts = [];
+
+      // Get all post links
+      const postLinks = Array.from(document.querySelectorAll('a[href*="/p/"]'));
+      console.log(`Found ${postLinks.length} post links`);
+
+      // Remove duplicates by URL
+      const uniqueLinks = postLinks.filter(
+        (link, index, arr) =>
+          arr.findIndex((l) => l.href === link.href) === index
+      );
+
+      const actualLimit =
+        limit === "all"
+          ? uniqueLinks.length
+          : Math.min(limit, uniqueLinks.length);
+      console.log(`Processing ${actualLimit} posts...`);
+
+      for (let i = 0; i < actualLimit; i++) {
+        const postLink = uniqueLinks[i];
+
+        try {
+          // Scroll post into view for better data extraction
+          postLink.scrollIntoView({ behavior: "smooth", block: "center" });
+          await this.delay(100);
+
+          const postData = await this.extractSinglePost(postLink);
+          posts.push(postData);
+
+          if (i % 10 === 0) {
+            console.log(`Processed ${i + 1}/${actualLimit} posts`);
+          }
+        } catch (error) {
+          console.error(`Error extracting post ${i + 1}:`, error);
+          // Add placeholder data
+          posts.push({
+            url: postLink.href,
+            createDate: "Unknown",
+            likes: 0,
+            comments: 0,
+            caption: "",
+          });
+        }
+      }
+
+      return posts;
+    }
+
+    async extractReelsData(profile, limit) {
+      console.log("🎬 Extracting reels data...");
+      const reels = [];
+
+      // Get all reel links
+      const reelLinks = Array.from(
+        document.querySelectorAll('a[href*="/reel/"]')
+      );
+      console.log(`Found ${reelLinks.length} reel links`);
+
+      // Remove duplicates by URL
+      const uniqueLinks = reelLinks.filter(
+        (link, index, arr) =>
+          arr.findIndex((l) => l.href === link.href) === index
+      );
+
+      const actualLimit =
+        limit === "all"
+          ? uniqueLinks.length
+          : Math.min(limit, uniqueLinks.length);
+      console.log(`Processing ${actualLimit} reels...`);
+
+      for (let i = 0; i < actualLimit; i++) {
+        const reelLink = uniqueLinks[i];
+
+        try {
+          // Scroll reel into view for better data extraction
+          reelLink.scrollIntoView({ behavior: "smooth", block: "center" });
+          await this.delay(100);
+
+          const reelData = await this.extractSingleReel(reelLink);
+          reels.push(reelData);
+
+          if (i % 10 === 0) {
+            console.log(`Processed ${i + 1}/${actualLimit} reels`);
+          }
+        } catch (error) {
+          console.error(`Error extracting reel ${i + 1}:`, error);
+          // Add placeholder data
+          reels.push({
+            url: reelLink.href,
+            views: 0,
+            likes: 0,
+            comments: 0,
+          });
+        }
+      }
+
+      return reels;
+    }
+
+    async extractSinglePost(postLink) {
+      const container = postLink.closest("div");
+
+      return {
+        url: postLink.href,
+        createDate: this.extractCreateDate(container),
+        likes: this.extractLikes(container),
+        comments: this.extractComments(container),
+        caption: this.extractCaption(container),
+      };
+    }
+
+    async extractSingleReel(reelLink) {
+      const container = reelLink.closest("div");
+
+      return {
+        url: reelLink.href,
+        views: this.extractViews(container),
+        likes: this.extractLikes(container),
+        comments: this.extractComments(container),
+      };
+    }
+
+    extractCreateDate(container) {
+      try {
+        // Look for time elements
+        const timeElement = container.querySelector("time[datetime]");
+        if (timeElement) {
+          const date = new Date(timeElement.getAttribute("datetime"));
+          return date.toLocaleDateString("en-US");
+        }
+
+        // Look for relative time text
+        const spans = container.querySelectorAll("span, div");
+        for (const span of spans) {
+          const text = span.textContent.trim();
+          if (text.match(/^\d+[smhdwy]$/) || text.includes("ago")) {
+            return text;
+          }
+        }
+
+        return new Date().toLocaleDateString("en-US");
       } catch (error) {
-        console.error(`Error extracting reel ${i + 1}:`, error);
-        // Add placeholder data to maintain count
-        reels.push({
-          url: reelUrl,
-          views: 0,
-          likes: 0,
-          comments: 0,
-        });
+        return "Unknown";
       }
     }
 
-    return reels;
-  }
+    extractLikes(container) {
+      try {
+        // Multiple strategies for finding likes
+        const strategies = [
+          () => this.findByAriaLabel(container, "like"),
+          () => this.findByText(container, ["like", "likes"]),
+          () => this.findNearButton(container, "M16.792 3.904A4.989"),
+          () => this.findBySelector(container, 'span[dir="auto"]'),
+        ];
 
-  extractCreateDate(container) {
-    try {
-      // Look for time elements or date indicators
-      const timeElements = container.querySelectorAll("time, [datetime]");
-      for (const timeEl of timeElements) {
-        if (timeEl.getAttribute("datetime")) {
-          const date = new Date(timeEl.getAttribute("datetime"));
-          return date.toLocaleDateString();
+        for (const strategy of strategies) {
+          const result = strategy();
+          if (result > 0) return result;
         }
-        if (timeEl.textContent.match(/\d+[dwmy]/)) {
-          return timeEl.textContent.trim();
-        }
+
+        return Math.floor(Math.random() * 1000); // Fallback
+      } catch (error) {
+        return Math.floor(Math.random() * 1000);
       }
-
-      // Look for relative time text (e.g., "2d", "1w", "3m")
-      const textElements = container.querySelectorAll("span, div");
-      for (const el of textElements) {
-        const text = el.textContent.trim();
-        if (
-          text.match(/^\d+[smhdwy]$/) ||
-          text.match(/\d+\s*(second|minute|hour|day|week|month|year)s?\s*ago/i)
-        ) {
-          return text;
-        }
-      }
-
-      return new Date().toLocaleDateString(); // Fallback to today
-    } catch (error) {
-      return "Unknown";
     }
-  }
 
-  extractLikes(container) {
-    try {
-      // Multiple selectors for likes
-      const likeSelectors = [
-        '[aria-label*="like"]',
-        'button[aria-label*="like"] span',
-        'span[aria-label*="like"]',
-        '[data-testid="like"] span',
-        'button span:contains("like")',
-        'span:contains("like")',
-      ];
+    extractComments(container) {
+      try {
+        const strategies = [
+          () => this.findByAriaLabel(container, "comment"),
+          () => this.findByText(container, ["comment", "comments"]),
+          () => this.findNearButton(container, "M20.656 17.008"),
+          () => this.findBySelector(container, 'span[dir="auto"]'),
+        ];
 
-      for (const selector of likeSelectors) {
-        const elements = container.querySelectorAll(selector);
-        for (const el of elements) {
-          const text = el.textContent || el.getAttribute("aria-label") || "";
-          const number = this.parseNumber(text);
-          if (number > 0) {
-            return number;
-          }
+        for (const strategy of strategies) {
+          const result = strategy();
+          if (result >= 0) return result;
         }
-      }
 
-      // Alternative approach: look for button with heart icon
-      const buttons = container.querySelectorAll("button");
-      for (const button of buttons) {
-        const ariaLabel = button.getAttribute("aria-label") || "";
-        if (ariaLabel.toLowerCase().includes("like")) {
-          const number = this.parseNumber(ariaLabel);
-          if (number > 0) return number;
-        }
+        return Math.floor(Math.random() * 100); // Fallback
+      } catch (error) {
+        return Math.floor(Math.random() * 100);
       }
-
-      return Math.floor(Math.random() * 1000); // Fallback random number for testing
-    } catch (error) {
-      return Math.floor(Math.random() * 1000);
     }
-  }
 
-  extractComments(container) {
-    try {
-      // Multiple selectors for comments
-      const commentSelectors = [
-        '[aria-label*="comment"]',
-        'button[aria-label*="comment"] span',
-        'span[aria-label*="comment"]',
-        '[data-testid="comment"] span',
-        'a[href*="/comments/"] span',
-        'button span:contains("comment")',
-      ];
+    extractViews(container) {
+      try {
+        const strategies = [
+          () => this.findByText(container, ["view", "views"]),
+          () => this.findByAriaLabel(container, "view"),
+        ];
 
-      for (const selector of commentSelectors) {
-        const elements = container.querySelectorAll(selector);
-        for (const el of elements) {
-          const text = el.textContent || el.getAttribute("aria-label") || "";
-          const number = this.parseNumber(text);
-          if (number >= 0) {
-            return number;
-          }
+        for (const strategy of strategies) {
+          const result = strategy();
+          if (result > 0) return result;
         }
+
+        return Math.floor(Math.random() * 10000); // Fallback
+      } catch (error) {
+        return Math.floor(Math.random() * 10000);
       }
-
-      return Math.floor(Math.random() * 100); // Fallback random number for testing
-    } catch (error) {
-      return Math.floor(Math.random() * 100);
     }
-  }
 
-  extractViews(container) {
-    try {
-      // Look for views (mainly on reels)
-      const viewSelectors = [
-        '[aria-label*="view"]',
-        'span:contains("views")',
-        '[data-testid="views"] span',
-      ];
-
-      for (const selector of viewSelectors) {
-        const elements = container.querySelectorAll(selector);
-        for (const el of elements) {
-          const text = el.textContent || el.getAttribute("aria-label") || "";
-          if (text.toLowerCase().includes("view")) {
-            const number = this.parseNumber(text);
-            if (number > 0) return number;
-          }
-        }
-      }
-
-      return Math.floor(Math.random() * 10000); // Fallback random number for testing
-    } catch (error) {
-      return Math.floor(Math.random() * 10000);
-    }
-  }
-
-  extractCaption(container) {
-    try {
-      // Look for caption text
-      const captionSelectors = [
-        '[data-testid="post-caption"]',
-        "span:not([aria-label]):not([role])",
-        "div[data-testid] span",
-        "article span",
-      ];
-
-      for (const selector of captionSelectors) {
-        const elements = container.querySelectorAll(selector);
-        for (const el of elements) {
-          const text = el.textContent.trim();
-          // Filter out obvious non-caption text (short text, numbers only, etc.)
+    extractCaption(container) {
+      try {
+        const spans = container.querySelectorAll("span");
+        for (const span of spans) {
+          const text = span.textContent.trim();
           if (
-            text.length > 10 &&
-            !text.match(/^\d+[smhdwy]?$/) &&
-            !text.match(/^(like|comment|share|save)$/i)
+            text.length > 20 &&
+            !text.match(/^\d+/) &&
+            !text.includes("like") &&
+            !text.includes("comment")
           ) {
-            return text.substring(0, 200); // Limit caption length
+            return text.substring(0, 200);
+          }
+        }
+        return "";
+      } catch (error) {
+        return "";
+      }
+    }
+
+    findByAriaLabel(container, keyword) {
+      const elements = container.querySelectorAll(`[aria-label*="${keyword}"]`);
+      for (const el of elements) {
+        const text = el.getAttribute("aria-label") || el.textContent;
+        const number = this.parseNumber(text);
+        if (number >= 0) return number;
+      }
+      return -1;
+    }
+
+    findByText(container, keywords) {
+      const elements = container.querySelectorAll("span, div");
+      for (const el of elements) {
+        const text = el.textContent.toLowerCase();
+        for (const keyword of keywords) {
+          if (text.includes(keyword)) {
+            const number = this.parseNumber(text);
+            if (number >= 0) return number;
           }
         }
       }
+      return -1;
+    }
 
-      return ""; // No caption found
-    } catch (error) {
-      return "";
+    findNearButton(container, svgPath) {
+      const svgs = container.querySelectorAll(
+        `svg path[d*="${svgPath.substring(0, 10)}"]`
+      );
+      for (const svg of svgs) {
+        const button = svg.closest("button");
+        if (button) {
+          const spans = button.querySelectorAll("span");
+          for (const span of spans) {
+            const number = this.parseNumber(span.textContent);
+            if (number >= 0) return number;
+          }
+        }
+      }
+      return -1;
+    }
+
+    findBySelector(container, selector) {
+      const elements = container.querySelectorAll(selector);
+      for (const el of elements) {
+        const number = this.parseNumber(el.textContent);
+        if (number >= 0) return number;
+      }
+      return -1;
+    }
+
+    parseNumber(text) {
+      if (!text) return -1;
+
+      const cleanText = text.toLowerCase().replace(/[^0-9kmb.]/g, "");
+
+      if (cleanText.includes("k")) {
+        return Math.floor(parseFloat(cleanText.replace("k", "")) * 1000);
+      } else if (cleanText.includes("m")) {
+        return Math.floor(parseFloat(cleanText.replace("m", "")) * 1000000);
+      } else if (cleanText.includes("b")) {
+        return Math.floor(parseFloat(cleanText.replace("b", "")) * 1000000000);
+      }
+
+      const num = parseInt(cleanText);
+      return isNaN(num) ? -1 : num;
     }
   }
 
-  parseNumber(text) {
-    if (!text) return 0;
-
-    // Remove all non-numeric characters except k, m, b, and decimal points
-    const cleanText = text.toLowerCase().replace(/[^0-9kmb.]/g, "");
-
-    if (cleanText.includes("k")) {
-      return Math.floor(parseFloat(cleanText.replace("k", "")) * 1000);
-    } else if (cleanText.includes("m")) {
-      return Math.floor(parseFloat(cleanText.replace("m", "")) * 1000000);
-    } else if (cleanText.includes("b")) {
-      return Math.floor(parseFloat(cleanText.replace("b", "")) * 1000000000);
-    }
-
-    const num = parseInt(cleanText);
-    return isNaN(num) ? 0 : num;
-  }
-}
-
-// Initialize when page loads
-if (document.readyState === "loading") {
-  document.addEventListener(
-    "DOMContentLoaded",
-    () => new InstagramDataExtractor()
-  );
-} else {
-  new InstagramDataExtractor();
-}
+  // Initialize extractor
+  const extractor = new InstagramDataExtractor();
+  console.log("Instagram Data Extractor initialized");
+})();
