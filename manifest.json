@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Social Feed Sorter",
+  "version": "1.0.0",
+  "description": "Sort TikTok and Instagram feeds by likes, views, comments, and engagement metrics",
+
+  "permissions": ["activeTab", "storage", "scripting"],
+
+  "host_permissions": ["https://*.tiktok.com/*", "https://*.instagram.com/*"],
+
+  "content_scripts": [
+    {
+      "matches": ["https://*.tiktok.com/*", "https://*.instagram.com/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Social Feed Sorter"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["ui/*"],
+      "matches": ["https://*.tiktok.com/*", "https://*.instagram.com/*"]
+    }
+  ]
+}

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        width: 320px;
+        min-height: 400px;
+        margin: 0;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .logo {
+        font-size: 24px;
+        margin-bottom: 5px;
+      }
+
+      .title {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 5px;
+      }
+
+      .subtitle {
+        font-size: 12px;
+        opacity: 0.8;
+      }
+
+      .platform-info {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 12px;
+        border-radius: 8px;
+        margin: 15px 0;
+        font-size: 13px;
+        text-align: center;
+        backdrop-filter: blur(10px);
+      }
+
+      .detection-info {
+        background: rgba(255, 255, 255, 0.15);
+        padding: 10px;
+        border-radius: 6px;
+        margin: 10px 0;
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .profile-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+      }
+
+      .sort-section {
+        margin: 20px 0;
+      }
+
+      .section-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        opacity: 0.9;
+      }
+
+      .limit-selector {
+        margin-bottom: 20px;
+        position: relative;
+      }
+
+      .limit-dropdown-btn {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        text-align: left;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        backdrop-filter: blur(10px);
+      }
+
+      .limit-dropdown-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .limit-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #fff;
+        color: #333;
+        border: 1px solid #e1e8ed;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 4px;
+        display: none;
+      }
+
+      .limit-dropdown.show {
+        display: block;
+      }
+
+      .limit-option {
+        padding: 12px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+
+      .limit-option:last-child {
+        border-bottom: none;
+      }
+
+      .limit-option:hover {
+        background: #f8f9fa;
+      }
+
+      .limit-option.active {
+        background: #e3f2fd;
+        color: #1976d2;
+      }
+
+      .likes-section {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 10px;
+        margin: 20px 0;
+        backdrop-filter: blur(10px);
+      }
+
+      .likes-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .likes-description {
+        font-size: 13px;
+        opacity: 0.9;
+        margin-bottom: 15px;
+      }
+
+      .action-btn {
+        width: 100%;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.9);
+        color: #667eea;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-bottom: 10px;
+      }
+
+      .action-btn:hover {
+        background: white;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      }
+
+      .action-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .export-btn {
+        background: rgba(76, 175, 80, 0.9);
+        color: white;
+        display: none;
+      }
+
+      .export-btn:hover {
+        background: rgba(76, 175, 80, 1);
+      }
+
+      .status {
+        text-align: center;
+        font-size: 12px;
+        opacity: 0.8;
+        margin-top: 15px;
+      }
+
+      .progress {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+        text-align: center;
+        display: none;
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+        overflow: hidden;
+        margin: 10px 0;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: #4caf50;
+        width: 0%;
+        transition: width 0.3s ease;
+      }
+
+      .version {
+        position: absolute;
+        bottom: 10px;
+        right: 15px;
+        font-size: 11px;
+        opacity: 0.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="logo">📊</div>
+      <div class="title">Instagram Likes Extractor</div>
+      <div class="subtitle">Extract likes data to CSV</div>
+    </div>
+
+    <div class="platform-info" id="platform-info">
+      Navigate to Instagram profile to start
+    </div>
+
+    <div class="detection-info" id="detection-info" style="display: none">
+      <div class="profile-info">
+        <span>👤</span>
+        <span id="profile-name">Profile detected</span>
+      </div>
+      <div id="content-type">Posts detected</div>
+    </div>
+
+    <div class="sort-section">
+      <div class="section-title">📊 Number of Items to Process</div>
+      <div class="limit-selector">
+        <button class="limit-dropdown-btn" id="limit-btn">
+          Latest 25 Items ▼
+        </button>
+        <div class="limit-dropdown" id="limit-dropdown">
+          <div class="limit-option active" data-limit="25">Latest 25 Items</div>
+          <div class="limit-option" data-limit="50">Latest 50 Items</div>
+          <div class="limit-option" data-limit="100">Latest 100 Items</div>
+          <div class="limit-option" data-limit="200">Latest 200 Items</div>
+          <div class="limit-option" data-limit="500">Latest 500 Items</div>
+          <div class="limit-option" data-limit="1000">Latest 1K Items</div>
+          <div class="limit-option" data-limit="all">All Available Items</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="likes-section">
+      <div class="likes-title">
+        <span>👍</span>
+        <span>Extract Likes Data</span>
+      </div>
+      <div class="likes-description">
+        Collects likes, comments, views and generates CSV file
+      </div>
+    </div>
+
+    <button class="action-btn" id="process-btn">🚀 Process Likes Data</button>
+
+    <button class="action-btn export-btn" id="export-btn">
+      📥 Export CSV File
+    </button>
+
+    <div class="progress" id="progress">
+      <div>Processing... <span id="progress-text">0%</span></div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="status" id="status">
+      🎉 Completely Free - All features included!
+    </div>
+
+    <div class="version">v1.0.0</div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

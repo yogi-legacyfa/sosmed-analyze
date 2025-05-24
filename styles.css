@@ -1,0 +1,15 @@
+/* Social Feed Sorter - Minimal Styles */
+
+/* This file is kept for potential future styling needs */
+/* Currently the extension uses popup-only interface */
+
+/* Helper classes for sorting */
+.sfs-sorted {
+  transition: all 0.3s ease;
+}
+
+.sfs-highlight {
+  border: 2px solid #4caf50 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.3) !important;
+}
